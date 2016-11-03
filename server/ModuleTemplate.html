@@ -1,0 +1,14 @@
+(function(scope,nameSpace){
+	/*
+	 * Library Code
+	 */
+	<?sourceCode?>
+	/*
+	 * End Library Code
+	 */
+var publicAPI = { 
+    <?functions?>
+                };
+scope[nameSpace] = publicAPI || scope[nameSpace];
+})(this, "<?nameSpace?>");
+

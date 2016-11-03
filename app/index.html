@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      #selectLibsContainer{border:solid;border-width:2px;border-color:gray;width:70%;padding:5px; margin-bottom:5px;}
+      #methodListContainter{border:solid;border-width:2px;border-color:gray;width:70%;padding:5px; margin-bottom:5px;}
+      
+      select { width:100%}         
+      #addLibContainer{border:solid;border-width:2px;border-color:gray;width:70%;padding:5px;margin-bottom:10px;}
+      #addLibContainer input[type="text"]{width:100%;margin-bottom:3px;}
+      #error{color:#B22222;margin-left:5px;}
+      .floatContainer{width:50%;float:left}
+    </style>
+  </head>
+  <body>
+    <div>
+      <h2>gasPacker</h2>
+      <h3>A module builder for Google Apps Script</h3>      
+    </div>    
+    
+    <div class="floatContainer">
+        <div id="addLibContainer">
+          <div><label for="libId-txt">Library Id</label>
+          <input id="libId-txt" type="text"></div>
+          <div>
+            <label for="nameSpace-txt">Module NameSpace</label>
+            <input id="NameSpace-txt" type="text">
+          </div>
+          <input id="addLib-btn" type="button" value="Add Library"><span id="error"></span>      
+        </div>
+        
+        
+        <div id="selectLibsContainer">
+          <select id="selectedLibs" multiple>    
+          </select>
+          <input id="removeLib-btn" type="button" value="Remove Library">
+        </div>
+        
+        <input id="buildPackFile-btn" type="button" value="Build pack file">
+        <label><input type="checkbox" id="minify-chkbox" value="minify_checkbox">Minify?</label>
+        <p id="packFileResults" hidden></p>
+   </div>
+   
+   
+   <div class="floatContainer">
+      <div id="methodListContainter"> 
+        <label for="selectedFunctions">Module public functions</label>
+        <select id="selectedFunctions" multiple>
+        </select>
+        <input id="removeFunc-btn" type="button" value="Remove">
+      </div>
+   </div>
+   
+  </body>
+  
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.0/jquery.min.js"></script>
+  
+  <script>
+  
+  // model*******************************************************************
+  var Model = {}
+      Model.Libs = {}; //{namespace:{libId:value, functions:[value, ...], ... } 
+      Model.SelectedLib = "";
+      
+      
+  
+  
+ 
+    
+  
+   //Controller*******************************************************************
+   var control = {
+  
+  removeFunction:function(funcName){        
+    Model.Libs[Model.SelectedLib].functions.splice(Model.Libs[Model.SelectedLib].functions.indexOf(funcName),1);
+    view.renderSelectedFunctions(Model.Libs[Model.SelectedLib].functions);
+  }, 
+  
+  setSelectedLib:function(nameSpace){        
+      Model.SelectedLib = nameSpace;
+      view.renderSelectedFunctions(Model.Libs[nameSpace].functions);    
+  }, 
+  addLib:function(nameSpace, libId){
+    Model.SelectedLib = nameSpace;
+    if(!(nameSpace in Model.Libs)){Model.Libs[nameSpace] = {}};
+    Model.Libs[nameSpace].libId = libId;
+    view.renderSelectedLibs(Model.Libs);                 
+    google.script.run
+      .withSuccessHandler(function(resp){
+        Model.Libs[nameSpace].functions = resp;
+        view.renderSelectedFunctions(Model.Libs[nameSpace].functions);
+      })
+      .withFailureHandler(function(error){view.showError(error)})
+      .getLibTopLevelFunctions(libId);          
+  },         
+  removeLib:function(nameSpace){
+    delete Model.Libs[nameSpace]; 
+    view.renderSelectedLibs(Model.Libs);
+    view.clearSelectedFunctions()
+  },
+  buildFile:function(fileName,minify){
+    google.script.run
+     .withSuccessHandler(function buildFileSuccess(results){view.showFileResults(results)})
+     .withFailureHandler(function buildFileFailure(error){view.showError(error)})
+     .buildModuleFile(Model.Libs,fileName,minify);
+  }
+};
+
+   
+ // UI EVENTS ***************************************************************
+  var libIdTxt = $("#libId-txt");
+  var nameSpaceTxt = $("#NameSpace-txt");
+  var libsList = $('#selectedLibs');
+  var funcList = $('#selectedFunctions');
+  var errorLabel = $('#error');
+  var fileResultsLabel = $('#packFileResults');
+  var minify = $('#minify-chkbox');
+ 
+  $(function UIEvents() {
+     $('#removeLib-btn').click(function removeLibBtn(){        
+        control.removeLib($('option:selected', libsList).val());
+     });
+  
+     $('#addLib-btn').click(function addLibBtn(){
+        if(nameSpaceTxt.val() && libIdTxt.val() ){          
+          control.addLib(nameSpaceTxt.val(),libIdTxt.val());
+          view.hideError();          
+        }else{
+          view.showError("Both fields are required.")          
+        }        
+     }); 
+     
+     
+     libsList.click(function libListClick(){ 
+       control.setSelectedLib($('option:selected', libsList).val());
+     });
+     
+     
+     $('#removeFunc-btn').click(function removeFunc(){
+        control.removeFunction($('option:selected', funcList).val())
+     });
+     
+     $('#buildPackFile-btn').click(function buildFileClick(){
+        view.hideFileResults();
+        var fileName = prompt("Enter file name for modual file", "myModule");
+        control.buildFile(fileName, minify.is(":checked"));
+        
+     });
+  });
+  
+  
+   //View*************************************************************************
+  var view = {
+  showFileResults:function(results){
+    fileResultsLabel.empty();
+    fileResultsLabel
+      .append($('<span>').text("File saved to drive: ").append($('<a>').attr("href",results.link).text(results.name)));
+    fileResultsLabel.show();
+  },
+  hideFileResults:function(){
+    fileResultsLabel.hide();
+  },  
+  showError:function(error){
+    errorLabel.text(error);
+    errorLabel.show();
+  },
+  hideError:function(){
+    errorLabel.hide();
+  },
+  renderSelectedLibs:function(selectedLibs){
+    libsList.empty();    
+    $.each(selectedLibs, function(key, value) {   
+      libsList
+      .append($('<option>', { value : key })
+              .text(key + " : " + value.libId)); 
+    })},
+  
+  renderSelectedFunctions:function(funcObj){
+    funcList.empty();    
+    $.each(funcObj, function(value) {   
+      funcList
+      .append($('<option>', { value : funcObj[value] })
+              .text(funcObj[value])); 
+    });
+  },
+  clearSelectedFunctions:function(){
+    funcList.empty();
+  }
+}
+   
+  </script>  
+</html>
+
+
