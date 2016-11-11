@@ -9,6 +9,6 @@
 var publicAPI = { 
     <?functions?>
                 };
-scope[nameSpace] = publicAPI || scope[nameSpace];
+scope[nameSpace] = scope[nameSpace] || publicAPI;
 })(this, "<?nameSpace?>");
 
